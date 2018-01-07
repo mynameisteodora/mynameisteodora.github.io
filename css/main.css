@@ -3,3 +3,7 @@ p {
     line-height: 1.4em;
     color: red;
 }
+
+body {
+    background: black;
+}
