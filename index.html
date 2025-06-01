@@ -1,10 +1,1320 @@
-<html>
-  <head>
-    <link rel="stylesheet" type="text/css" href="/css/main.css">
-  </head>
-  <body>
-    <p> This site is currently under construction. </p>
-    <p> For more information please visit: </p>
-    <a href="https://www.linkedin.com/in/teodora-maria-georgescu/"> LinkedIn Profile </a>
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Vim City Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Make the body scrollable and set a background color */
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: auto; /* Allow scrolling */
+            background-color: #f3f4f6; /* A light gray background for the scrollable area */
+        }
+        
+        /* This is the new wrapper that enforces the fixed size */
+        #game-world {
+            width: 1920px;
+            height: 960px;
+            position: relative;
+            /* This will center the game area if the screen is larger */
+            margin: auto;
+        }
+
+        #character {
+            /* Width and height are now controlled by JavaScript */
+            transition: top 0.05s linear, left 0.05s linear, width 0.3s ease-in-out, height 0.3s ease-in-out;
+            position: absolute; /* z-index is now dynamic */
+            overflow: hidden; 
+        }
+		
+        #character-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+        .location-text { 
+            pointer-events: none; 
+        }
+        
+        #touch-controls {
+            display: none; 
+        }
+        
+        .building { 
+            display: flex;
+            align-items: center;
+            justify-content: center; 
+            text-align: center;
+            font-weight: bold;
+            position: absolute; /* z-index is now dynamic */
+        }
+        .building-image { 
+            object-fit: fill; 
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+		/* Confetti Styles */
+        .confetti-piece {
+            position: absolute;
+            width: 8px;
+            height: 12px;
+            opacity: 1; 
+            z-index: 1001; 
+            border-radius: 2px;
+        }
+		
+		#king-and-queen {
+			width: 120px;
+			height: 160px;
+			z-index: 950; /* Above most elements but below the dialog */
+			transition: top 2s ease-out, opacity 1s ease-out;
+			opacity: 0;
+            image-rendering: pixelated;
+		}
+
+        #title-image-container { 
+            width: 100%;
+            text-align: center; 
+            padding-top: 0rem; 
+            padding-bottom: 0.5rem; 
+            position: absolute; 
+            top: 1px; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000; /* Title stays on top */
+        }
+        #title-image {
+            max-height: 160px; 
+            width: auto;      
+            display: inline-block; 
+        }
+
+        #game-container {
+            background-color: #d1e7dd;
+            position: relative; 
+        }
+
+        #background-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            z-index: 0; 
+        }
+
+        .grid-cell {
+            width: 60px;
+            height: 60px;
+            background-size: 60px 60px;
+            background-repeat: repeat;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: rgba(0,0,0,0.2);
+            font-family: monospace;
+        }
+        .path-cell {
+            background-image: url('images/path5.png');
+            background-size: cover; 
+            background-repeat: repeat;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+        
+        .water-cell {
+            background-image: url('images/water_new.png');
+            background-size: cover; 
+        }
+		
+		/* New class for the flipped water tile state */
+		.water-cell-flipped {
+            transform: scaleY(-1);		        
+		}
+		
+        .grass-cell {
+            background-image: url('images/grass7.png');
+            background-size: cover; 
+        }
+        
+		/* Light Beam Styles */
+        .light-beam {
+            position: absolute;
+            /* width, height, left, top, background-color are set by JS or animation */
+            opacity: 0; /* Initial opacity for animation */
+            transform-origin: bottom center; /* Crucial: 50% horizontal, 100% vertical */
+            animation: radiate 9s ease-out 0s 1 normal forwards;
+        }
+        
+        /* Custom style to ensure dialogs are on top */
+        #dialog-link-wrapper, #hover-dialog-link-wrapper {
+            position: absolute;
+            display: none; /* Hidden by default */
+            z-index: 2000; /* High value to appear over all other elements */
+            text-decoration: none; /* Remove underline from link */
+        }
+        #hover-dialog-link-wrapper {
+             z-index: 2001; /* Hover dialog is on top of character dialog */
+        }
+
+
+		@keyframes radiate {
+            0% {
+		        height: 0;
+		        opacity: 0.75;
+		    }
+		    50% {
+		        height: 450px; /* Max height of the beam */
+		        opacity: 0.75;
+		    }
+		    100% {
+		        height: 200px; /* Slightly retract before fading */
+		        opacity: 0;
+		    }
+		 }
+				
+         @media (max-width: 768px), (hover: none) and (pointer: coarse) {
+             #touch-controls { display: flex; }
+             #character { width: 30px !important; height: 40px !important; } 
+             #dialog-box, #hover-dialog-box { padding: 0.5rem; }
+             #dialog-location, #hover-dialog-location { font-size: 0.8rem; }
+             #dialog-time, #hover-dialog-time { font-size: 0.65rem; }
+             .confetti-piece {
+                 width: 6px;
+                 height: 10px;
+             }
+             #title-image {
+                 max-height: 30px; 
+             }
+             #title-image-container {
+                  padding-top: 0.5rem;
+                  top: 5px;
+             }
+ 			.light-beam {
+ 			                 animation: radiate-mobile 3s ease-out 0s 1 normal forwards;
+ 			            }
+ 			            @keyframes radiate-mobile { /* Shorter beams for mobile */
+ 			                0% { height: 0; opacity: 0.7;}
+ 			                50% { height: 150px; opacity: 0.3;}
+ 			                100% { height: 120px; opacity: 0;}
+ 			            }
+         }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="game-world">
+        <div id="game-wrapper" class="w-full h-full flex flex-col relative"> 
+            <div id="game-container" class="flex-grow relative overflow-hidden select-none"> 
+                <div id="background-grid"></div> 
+				<img id="sign" src="images/sign2.gif" alt="Sign" class="building building-image">
+
+                <img id="town-hall" src="images/town_hall_no_bg.png" alt="Town Hall" class="location building building-image" data-name="Town Hall"> 
+				<!-- Bushes and flowers under town hall -->
+				<img id="bush1_4" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush5_1" src="images/bush_5.png" alt="Bush" class="building building-image">
+				<img id="bush3_3" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush2_2" src="images/bush_2.png" alt="Bush" class="building building-image">
+				<img id="bush7_1" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="flowers1" src="images/flowers_1.png" alt="Flowerbed" class="building building-image">
+				<img id="flowers2" src="images/flowers_2.png" alt="Flowerbed" class="building building-image">
+				<img id="flowers1_1" src="images/flowers_1.png" alt="Flowerbed" class="building building-image">
+				<img id="flowers2_1" src="images/flowers_2.png" alt="Flowerbed" class="building building-image">
+				<img id="flowers1_2" src="images/flowers_1.png" alt="Flowerbed" class="building building-image">
+				<img id="flowers1_3" src="images/flowers_1.png" alt="Flowerbed" class="building building-image">
+				
+				<!-- Trees around town hall -->
+                <img id="tree16_2" src="images/tree_16.png" alt="Tree 16" class="building building-image">
+				<img id="tree10_2" src="images/tree_10.png" alt="Tree 10" class="building building-image">
+				<img id="tree14_1" src="images/tree_14.png" alt="Tree 14" class="building building-image">
+				<img id="tree22_5" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+                <img id="tree16_3" src="images/tree_16.png" alt="Tree 16" class="building building-image">
+				<img id="tree10_3" src="images/tree_10.png" alt="Tree 10" class="building building-image">
+				<img id="tree14_2" src="images/tree_14.png" alt="Tree 14" class="building building-image">
+				<img id="tree22_6" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				
+				<!-- Houses around town hall -->
+				<img id="house2_4" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_5" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_6" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_7" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_8" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_9" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_10" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_11" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_12" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_13" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_14" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="tree22_7" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_8" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_9" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				
+				<img id="house2_15" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_16" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_17" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_18" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_19" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_20" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_21" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_22" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_23" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_24" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_25" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_26" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_27" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_28" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_29" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_30" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_31" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_32" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="bush7_4" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush7_5" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush7_6" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush7_7" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush7_8" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush7_9" src="images/bush_7.png" alt="Bush" class="building building-image">
+				
+				<img id="tree12_4" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_10" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_5" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_11" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_6" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_12" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_7" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_13" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_8" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_14" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_9" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_15" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				
+				<img id="bigBen" src="images/big_ben.png" alt="Big Ben" class="building building-image">
+				
+				<!-- Houses below Big Ben -->
+				<img id="house1_9" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_10" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_11" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_12" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_13" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_14" src="images/house_1.png" alt="House" class="building building-image">
+				
+				<!-- Houses north of Big Ben -->
+				<img id="house1_15" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_16" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_17" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_18" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_19" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_20" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_21" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_22" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_23" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_24" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_25" src="images/house_1.png" alt="House" class="building building-image">
+				
+				
+                <img id="restaurant" src="images/flour_grape.png" alt="Restaurant" class="location building building-image" data-name="Restaurant">
+                <img id="concert-venue" src="images/abba_arena.png" alt="Concert Venue" class="location building building-image" data-name="Concert Venue">
+                
+                <div id="character" class="absolute"> 
+                     <img id="character-image" src="images/couple_jump.gif" alt="Character Couple">
+                </div>
+                
+                <!-- Wrapper Link for all dialogs -->
+                <a id="dialog-link-wrapper" href="#" target="_blank">
+                    <div id="dialog-box" class="bg-white p-2 md:p-4 rounded-lg shadow-xl border border-gray-300 hidden text-center flex-col">
+                        <p id="dialog-location" class="font-semibold text-sm md:text-lg text-gray-800"></p>
+                        <p id="dialog-time" class="text-xs md:text-base text-gray-600"></p>
+                    </div>
+                    
+                    <div id="custom-dialog-image-container" class="hidden">
+                        <img id="custom-dialog-image" src="" alt="Custom Dialog" class="rounded-lg">
+                    </div>
+                </a>
+				
+                <!-- Dialog for Hover -->
+                <a id="hover-dialog-link-wrapper" href="#" target="_blank">
+                    <div id="hover-dialog-box" class="bg-white p-2 md:p-4 rounded-lg hidden text-center flex-col">
+                        <p id="hover-dialog-location" class="font-semibold text-sm md:text-lg text-gray-800"></p>
+                        <p id="hover-dialog-time" class="text-xs md:text-base text-gray-600"></p>
+                    </div>
+                    <div id="hover-custom-dialog-image-container" class="hidden">
+                        <img id="hover-custom-dialog-image" src="" alt="Custom Hover Dialog" class="rounded-lg">
+                    </div>
+                </a>
+				
+				<!-- Bottom left under river -->
+                <img id="tree16" src="images/tree_16.png" alt="Tree 16" class="building building-image">
+				<img id="tree10" src="images/tree_10.png" alt="Tree 10" class="building building-image">
+				<img id="tree14" src="images/tree_14.png" alt="Tree 14" class="building building-image">
+				<img id="tree22" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				
+				<!-- Bottom left above river -->
+				<img id="house1" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_1" src="images/house_1.png" alt="House" class="building building-image">
+				<img id="house1_2" src="images/house_1.png" alt="House" class="building building-image">
+				
+				<!-- Trees behind houses -->
+				<img id="tree22_1" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_2" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_1" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree17" src="images/tree_17.png" alt="Tree 17" class="building building-image">
+				
+				<img id="house2" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_1" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_2" src="images/house_2.png" alt="House 2" class="building building-image">
+				<img id="house2_3" src="images/house_2.png" alt="House 2" class="building building-image">
+				
+				<img id="tree22_3" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_2" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree22_4" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_3" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				
+				<img id="house3" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_1" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="tree10_1" src="images/tree_10.png" alt="Tree 10" class="building building-image">
+				<img id="house3_2" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_3" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_4" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_5" src="images/house_3.png" alt="House" class="building building-image">
+				
+				<img id="bush1" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush2" src="images/bush_2.png" alt="Bush" class="building building-image">
+				<img id="bush3" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush4" src="images/bush_4.png" alt="Bush" class="building building-image">
+				<img id="bush5" src="images/bush_5.png" alt="Bush" class="building building-image">
+				<img id="bush6" src="images/bush_6.png" alt="Bush" class="building building-image">
+				<img id="bush2_1" src="images/bush_2.png" alt="Bush" class="building building-image">
+				
+				<img id="house3_6" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_7" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_8" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_9" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_10" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_11" src="images/house_3.png" alt="House" class="building building-image">
+				 <img id="tree16_1" src="images/tree_16.png" alt="Tree 16" class="building building-image">
+				 
+				 <!-- Houses North of Abba Arena -->
+ 				<img id="house3_12" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_13" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_14" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_15" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_16" src="images/house_3.png" alt="House" class="building building-image">
+				<img id="house3_17" src="images/house_3.png" alt="House" class="building building-image">
+				
+				
+				<img id="bush7" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush8" src="images/bush_8.png" alt="Bush" class="building building-image">
+				<img id="bush8_1" src="images/bush_8.png" alt="Bush" class="building building-image">
+				<img id="bush7_10" src="images/bush_7.png" alt="Bush" class="building building-image">
+				
+				<img id="tree22_16" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_17" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_18" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_19" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_20" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_21" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_22" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree22_23" src="images/tree_22.png" alt="Tree 22" class="building building-image">
+				<img id="tree12_10" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree12_11" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				<img id="tree12_12" src="images/tree_12.png" alt="Tree 12" class="building building-image">
+				
+				<img id="bush1_1" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush3_1" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush4_1" src="images/bush_4.png" alt="Bush" class="building building-image">
+				<img id="bush6_1" src="images/bush_6.png" alt="Bush" class="building building-image">
+				<img id="bush7_2" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush1_2" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush3_2" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush4_2" src="images/bush_4.png" alt="Bush" class="building building-image">
+				<img id="bush6_2" src="images/bush_6.png" alt="Bush" class="building building-image">
+				<img id="bush7_3" src="images/bush_7.png" alt="Bush" class="building building-image">
+				<img id="bush1_3" src="images/bush_1.png" alt="Bush" class="building building-image">
+				
+				<!-- Bushes and trees to the right of Restaurant -->
+				<img id="bush1_5" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush2_3" src="images/bush_2.png" alt="Bush" class="building building-image">
+				<img id="bush3_4" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush4_3" src="images/bush_4.png" alt="Bush" class="building building-image">
+				<img id="bush5_2" src="images/bush_5.png" alt="Bush" class="building building-image">
+				<img id="bush6_3" src="images/bush_6.png" alt="Bush" class="building building-image">
+				<img id="bush2_4" src="images/bush_2.png" alt="Bush" class="building building-image">
+				<img id="bush1_6" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush3_5" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush2_5" src="images/bush_2.png" alt="Bush" class="building building-image">
+				<img id="bush1_7" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush3_6" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush1_8" src="images/bush_1.png" alt="Bush" class="building building-image">
+				<img id="bush2_6" src="images/bush_2.png" alt="Bush" class="building building-image">
+				<img id="bush3_7" src="images/bush_3.png" alt="Bush" class="building building-image">
+				<img id="bush4_4" src="images/bush_4.png" alt="Bush" class="building building-image">
+				<img id="bush5_3" src="images/bush_5.png" alt="Bush" class="building building-image">
+				
+				<img id="londonEye" src="images/london_eye.png" alt="London Eye" class="building building-image">
+				<img id="bhamPalace" src="images/bham_palace.png" alt="Buckingham Palace" class="building building-image">
+				
+				<img id="king-and-queen" src="images/king_and_queen.png" alt="King and Queen" class="absolute">
+				<div id="light-beam-container" class="absolute w-full h-full pointer-events-none"></div>
+            </div>
+
+            <div id="touch-controls" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-30 flex flex-col items-center space-y-1 p-2 bg-gray-800 bg-opacity-50 rounded-lg">
+                <button data-key="ArrowUp" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">▲</button>
+                <div class="flex space-x-1">
+                    <button data-key="ArrowLeft" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">◄</button>
+                    <button data-key="ArrowDown" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">▼</button>
+                    <button data-key="ArrowRight" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">►</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const gameContainer = document.getElementById('game-container');
+            const backgroundGrid = document.getElementById('background-grid'); 
+            const character = document.getElementById('character'); 
+            const characterImage = document.getElementById('character-image'); 
+			
+			// Character Dialog elements
+			const dialogLinkWrapper = document.getElementById('dialog-link-wrapper');
+            const dialogBox = document.getElementById('dialog-box');
+            const dialogLocation = document.getElementById('dialog-location');
+            const dialogTime = document.getElementById('dialog-time');
+            const customDialogImageContainer = document.getElementById('custom-dialog-image-container');
+            const customDialogImage = document.getElementById('custom-dialog-image');
+			
+			// Hover dialog elements
+            const hoverDialogLinkWrapper = document.getElementById('hover-dialog-link-wrapper');
+            const hoverDialogBox = document.getElementById('hover-dialog-box');
+            const hoverDialogLocation = document.getElementById('hover-dialog-location');
+            const hoverDialogTime = document.getElementById('hover-dialog-time');
+            const hoverCustomDialogImageContainer = document.getElementById('hover-custom-dialog-image-container');
+            const hoverCustomDialogImage = document.getElementById('hover-custom-dialog-image');
+			
+            const locationElements = Array.from(document.querySelectorAll('.location')); 
+            const touchControlsContainer = document.getElementById('touch-controls');
+			const lightBeamContainer = document.getElementById('light-beam-container');
+
+            // --- Game State Variables ---
+            let charPos = { x: 0, y: 0 }; 
+            const step = 5; 
+            let activeLocation = null;
+            let walkableAreas = []; 
+            let activeConfetti = []; 
+            let confettiAnimationFrameId = null; 
+			let activeLightBeams = [];
+            let numCols = 0; // Ensure this is global and initialized
+
+            // --- Game Configuration ---
+            const gridCellSize = 60; 
+            const characterStartCoord = { row: 9, col: 0 };
+			const house1Width = 90;
+			const house2Width = 80;
+
+            // NEW: Define a default state for the character
+            const defaultCharacterState = {
+                src: 'images/couple.png',
+                width: 100,
+                height: 160
+            };
+            
+            // UPDATED: Building data now includes Google Maps links and interactions.
+            const buildingData = {
+                'town-hall': { 
+                    row: 5, col: 6, aspectRatio: 1.22, width: 350,
+					dialogImage: 'images/town_hall_dialog.gif', // <-- Custom dialog image
+                    dialogImageWidth: 180,
+                    dialogImageHeight: 180,
+					dialogLink: 'https://maps.app.goo.gl/Hd6oUJJtvgtno4yn9',
+                    interaction: {
+                        charImage: 'images/couple_spin.gif',
+                        charWidth: 120, 
+                        charHeight: 180 
+                    }
+                },
+				'bigBen': { row: 5, col: 18, aspectRatio: 1.17, height: 300 },
+                'restaurant': { 
+					row: 13, col: 17, aspectRatio: 0.85, height: 250,
+					dialogImage: 'images/flour_grape_dialog.gif', // <-- Custom dialog image
+                    dialogImageWidth: 180,
+                    dialogImageHeight: 180,
+					dialogLink: 'https://maps.app.goo.gl/3JFbDTZKvAFg6gzWA',
+					interaction: {
+                        charImage: 'images/couple_eat.gif',
+                        charWidth: 230, 
+                        charHeight: 180 
+					}
+				 },
+                'concert-venue': { 
+                    row: 6, col: 27, aspectRatio: 1.52, height: 270,
+					dialogImage: 'images/abba_arena_dialog.gif', // <-- Custom dialog image
+                    dialogImageWidth: 180,
+                    dialogImageHeight: 180,
+					dialogLink: 'https://maps.app.goo.gl/3uEN8ZFceTF74tbr9',
+                    interaction: {
+                        charImage: 'images/couple_dance.gif',
+                        charWidth: 230, 
+                        charHeight: 180
+                    }
+                },	
+				'bhamPalace': { row: 14, col: 27.5, aspectRatio: 2.47, height: 180 },
+				'londonEye': { row: 13, col: 8, aspectRatio: 0.92, width: 200 },
+				'sign': { row: 9, col: 20, aspectRatio: 0.9, width: 200 },
+				
+				// Bushes and flowers under town hall
+				'bush1_4':        { row: 6.75, col: 5, aspectRatio: 1.39, width: 60 },
+				'bush5_1':        { row: 6.5, col: 5.5, aspectRatio: 1.39, width: 60 },
+				'bush3_3':        { row: 6.75, col: 6, aspectRatio: 1.39, width: 60 },
+				'bush2_2':        { row: 6.5, col: 6.5, aspectRatio: 1.39, width: 60 },
+				'bush7_1':        { row: 6.75, col: 7, aspectRatio: 1.39, width: 60 },
+				'flowers1':        { row: 7, col: 2, aspectRatio: 2.07, width: 60 },
+				'flowers2':        { row: 6, col: 3, aspectRatio: 2.07, width: 60 },
+				'flowers1_1':        { row: 7, col: 4, aspectRatio: 2.07, width: 60 },
+				'flowers2_1':        { row: 6, col: 9, aspectRatio: 2.07, width: 60 },
+				'flowers1_2':        { row: 7, col: 8, aspectRatio: 2.07, width: 60 },
+				'flowers1_3':        { row: 7, col: 10, aspectRatio: 2.07, width: 60 },
+				
+				// Trees around town hall
+				'tree16_2':         { row: 5, col: 3, aspectRatio: 0.78, width: 100 },
+				'tree10_2':         { row: 5, col: 4, aspectRatio: 0.78, width: 100 },
+				'tree14_1':         { row: 4, col: 3, aspectRatio: 0.78, width: 100 },
+				'tree22_5':         { row: 4.5, col: 2, aspectRatio: 0.78, width: 100 },
+				'tree16_3':         { row: 5, col: 9, aspectRatio: 0.78, width: 100 },
+				'tree10_3':         { row: 4, col: 8, aspectRatio: 0.78, width: 100 },
+				'tree14_2':         { row: 4, col: 9, aspectRatio: 0.78, width: 100 },
+				'tree22_6':         { row: 4.5, col: 10, aspectRatio: 0.78, width: 100 },
+				
+				// Houses around town hall
+				'house2_4':        { row: 5, col: -0.5, aspectRatio: 0.66, width: house2Width },
+				'house2_5':        { row: 4, col: 0.25, aspectRatio: 0.66, width: house2Width },
+				'house2_6':        { row: 3, col: 1, aspectRatio: 0.66, width: house2Width },
+				'house2_7':        { row: 2, col: 1.75, aspectRatio: 0.66, width: house2Width },
+				'house2_8':        { row: 1, col: 2.5, aspectRatio: 0.66, width: house2Width },
+				'house2_9':        { row: 0, col: 3.25, aspectRatio: 0.66, width: house2Width },
+				'house2_10':        { row: 4, col: -0.25, aspectRatio: 0.66, width: house2Width },
+				'house2_11':        { row: 3, col: -0.25, aspectRatio: 0.66, width: house2Width },
+				'house2_12':        { row: 2, col: 0.5, aspectRatio: 0.66, width: house2Width },
+				'house2_13':        { row: 1, col: 1.25, aspectRatio: 0.66, width: house2Width },
+				'house2_14':        { row: 0, col: 2, aspectRatio: 0.66, width: house2Width },
+				
+				'tree22_7':         { row: 2, col: -0.75, aspectRatio: 0.78, width: 100 },
+				'tree22_8':         { row: 1, col: 0, aspectRatio: 0.78, width: 100 },
+				'tree22_9':         { row: 0, col: 1, aspectRatio: 0.78, width: 100 },
+				
+				'house2_15':        { row: 0, col: 9, aspectRatio: 0.66, width: house2Width },
+				'house2_16':        { row: 0, col: 10, aspectRatio: 0.66, width: house2Width },
+				'house2_17':        { row: 1, col: 9.75, aspectRatio: 0.66, width: house2Width },
+				'house2_18':        { row: 1, col: 10.75, aspectRatio: 0.66, width: house2Width },
+				'house2_19':        { row: 2, col: 10.5, aspectRatio: 0.66, width: house2Width },
+				'house2_20':        { row: 2, col: 11.5, aspectRatio: 0.66, width: house2Width },
+				'house2_21':        { row: 3, col: 11.25, aspectRatio: 0.66, width: house2Width },
+				'house2_22':        { row: 3, col: 12.25, aspectRatio: 0.66, width: house2Width },
+				
+				'house2_23':        { row: 4, col: 12, aspectRatio: 0.66, width: house2Width },
+				'house2_24':        { row: 4, col: 13.25, aspectRatio: 0.66, width: house2Width },
+				
+				'house2_25':        { row: 3, col: 13.25, aspectRatio: 0.66, width: house2Width },
+				'house2_26':        { row: 3, col: 14.25, aspectRatio: 0.66, width: house2Width },
+				'house2_27':        { row: 2, col: 14, aspectRatio: 0.66, width: house2Width },
+				'house2_28':        { row: 2, col: 15, aspectRatio: 0.66, width: house2Width },
+				'house2_29':        { row: 1, col: 15, aspectRatio: 0.66, width: house2Width },
+				'house2_30':        { row: 1, col: 16, aspectRatio: 0.66, width: house2Width },
+				'house2_31':        { row: 0, col: 16, aspectRatio: 0.66, width: house2Width },
+				'house2_32':        { row: 0, col: 17, aspectRatio: 0.66, width: house2Width },
+				
+				'bush7_4':        { row: 4, col: 11, aspectRatio: 1.39, width: 60 },
+				'bush7_5':        { row: 4, col: 14, aspectRatio: 1.39, width: 60 },
+				'bush7_6':        { row: 3, col: 15, aspectRatio: 1.39, width: 60 },
+				'bush7_7':        { row: 2, col: 16, aspectRatio: 1.39, width: 60 },
+				'bush7_8':        { row: 1, col: 17, aspectRatio: 1.39, width: 60 },
+				'bush7_9':        { row: 0, col: 18, aspectRatio: 1.39, width: 60 },
+				
+				'tree12_4':         { row: 2, col: 12, aspectRatio: 0.78, width: 100 },
+				'tree22_10':         { row: 2.5, col: 12.5, aspectRatio: 0.78, width: 100 },
+				'tree12_5':         { row: 2, col: 13, aspectRatio: 0.78, width: 100 },
+				'tree22_11':         { row: 1, col: 12.5, aspectRatio: 0.78, width: 100 },
+				'tree12_6':         { row: 1.5, col: 13, aspectRatio: 0.78, width: 100 },
+				'tree22_12':         { row: 1, col: 11, aspectRatio: 0.78, width: 100 },
+				'tree12_7':         { row: 1.5, col: 12, aspectRatio: 0.78, width: 100 },
+				'tree22_13':         { row: 0, col: 12.5, aspectRatio: 0.78, width: 100 },
+				'tree12_8':         { row: 0.5, col: 12, aspectRatio: 0.78, width: 100 },
+				'tree22_14':         { row: 0, col: 12.5, aspectRatio: 0.78, width: 100 },
+				'tree12_9':         { row: 1, col: 14, aspectRatio: 0.78, width: 100 },
+				'tree22_15':         { row: 1.5, col: 13.5, aspectRatio: 0.78, width: 100 },
+				
+				// Houses around Big Ben
+				'house1_9':        { row: 7, col: 13.25, aspectRatio: 0.79, width: house1Width },
+				'house1_10':        { row: 7, col: 14, aspectRatio: 0.79, width: house1Width },
+				'house1_11':        { row: 7, col: 14.75, aspectRatio: 0.79, width: house1Width },
+				'house1_12':        { row: 6, col: 15.25, aspectRatio: 0.79, width: house1Width },
+				'house1_13':        { row: 6, col: 16, aspectRatio: 0.79, width: house1Width },
+				'house1_14':        { row: 6, col: 16.75, aspectRatio: 0.79, width: house1Width },
+				
+				// Houses north of Big Ben
+				'house1_15':        { row: 4, col: 19.5, aspectRatio: 0.79, width: house1Width },
+				'house1_16':        { row: 4, col: 20.5, aspectRatio: 0.79, width: house1Width },
+				'house1_17':        { row: 3, col: 21, aspectRatio: 0.79, width: house1Width },
+				'house1_18':        { row: 3, col: 22, aspectRatio: 0.79, width: house1Width },
+				'house1_19':        { row: 2, col: 22.5, aspectRatio: 0.79, width: house1Width },
+				'house1_20':        { row: 2, col: 23.5, aspectRatio: 0.79, width: house1Width },
+				'house1_21':        { row: 2, col: 23.5, aspectRatio: 0.79, width: house1Width },
+				'house1_22':        { row: 1, col: 24, aspectRatio: 0.79, width: house1Width },
+				'house1_23':        { row: 1, col: 25, aspectRatio: 0.79, width: house1Width },
+				'house1_24':        { row: 0, col: 25.5, aspectRatio: 0.79, width: house1Width },
+				'house1_25':        { row: 0, col: 26.5, aspectRatio: 0.79, width: house1Width },
+				// Bottom left under river
+				'tree16':         { row: 14.5, col: 0, aspectRatio: 0.78, width: 100 },
+				'tree10':         { row: 14.75, col: 1, aspectRatio: 0.78, width: 100 },
+				'tree14':         { row: 14.5, col: 1.75, aspectRatio: 0.78, width: 100 },
+				'tree22':         { row: 14.75, col: 2.5, aspectRatio: 0.78, width: 100 },
+				
+				// Bottom left above river
+				'house1':        { row: 12, col: 0, aspectRatio: 0.79, width: house1Width },
+				'house1_1':        { row: 12, col: 1.25, aspectRatio: 0.79, width: house1Width },
+				'house1_2':        { row: 12, col: 2.5, aspectRatio: 0.79, width: house1Width },
+				
+				// Trees behind houses
+				'tree22_1':         { row: 11.75, col: 0, aspectRatio: 0.78, width: 100 },
+				'tree12':         { row: 11.75, col: 1, aspectRatio: 0.78, width: 100 },
+				'tree22_2':         { row: 11.75, col: 2, aspectRatio: 0.78, width: 100 },
+				'tree12_1':         { row: 11.75, col: 3, aspectRatio: 0.78, width: 100 },
+				'tree17':         { row: 12, col: 3.25, aspectRatio: 0.78, width: 100 }, // Orange tree
+				
+				// Bottom left white houses
+				'house2':        { row: 14.75, col: 3.5, aspectRatio: 0.66, width: house2Width },
+				'house2_1':        { row: 14.75, col: 4.75, aspectRatio: 0.66, width: house2Width },
+				'house2_2':        { row: 14.75, col: 6, aspectRatio: 0.66, width: house2Width },
+				'house2_3':        { row: 14.75, col: 7.25, aspectRatio: 0.66, width: house2Width },
+				
+				// Trees behind white houses
+				'tree22_3':         { row: 14, col: 5, aspectRatio: 0.78, width: 100 },
+				'tree12_2':         { row: 14, col: 6, aspectRatio: 0.78, width: 100 },
+				'tree22_4':         { row: 14, col: 7, aspectRatio: 0.78, width: 100 },
+				'tree12_3':         { row: 14, col: 8, aspectRatio: 0.78, width: 100 },
+				
+				// Red houses left of Flour & Grape				
+				'house3':        { row: 13.5, col: 11, aspectRatio: 0.66, width: house2Width },
+				'house3_1':        { row: 13.5, col: 12.25, aspectRatio: 0.66, width: house2Width },
+				'tree10_1':         { row: 13.5, col: 13, aspectRatio: 0.78, width: 100 },
+				'house3_2':        { row: 14.25, col: 12.5, aspectRatio: 0.66, width: house2Width },
+				'house3_3':        { row: 14.25, col: 13.75, aspectRatio: 0.66, width: house2Width },
+				'house3_4':        { row: 15, col: 13.5, aspectRatio: 0.66, width: house2Width },
+				'house3_5':        { row: 15, col: 14.75, aspectRatio: 0.66, width: house2Width },
+				
+				// Bushes under Flour & Grape
+				'bush1':        { row: 14.75, col: 16, aspectRatio: 1.39, width: 60 },
+				'bush2':        { row: 14.5, col: 16.5, aspectRatio: 1.39, width: 60 },
+				'bush3':        { row: 14.75, col: 17, aspectRatio: 1.39, width: 60 },
+				'bush4':        { row: 14.5, col: 17.5, aspectRatio: 1.39, width: 60 },
+				'bush5':        { row: 14.75, col: 18, aspectRatio: 1.39, width: 60 },
+				'bush6':        { row: 14.5, col: 18.5, aspectRatio: 1.39, width: 60 },
+				'bush2_1':        { row: 14.75, col: 19, aspectRatio: 1.39, width: 60 },
+				
+				// Red houses right of Flour & Grape
+				'house3_6':        { row: 15, col: 20, aspectRatio: 0.66, width: house2Width },
+				'house3_7':        { row: 15, col: 21.25, aspectRatio: 0.66, width: house2Width },
+				'house3_8':        { row: 14.25, col: 20.5, aspectRatio: 0.66, width: house2Width },
+				'house3_9':        { row: 14.25, col: 21.75, aspectRatio: 0.66, width: house2Width },
+				'house3_10':        { row: 13.5, col: 21, aspectRatio: 0.66, width: house2Width },
+				'house3_11':        { row: 13.5, col: 22.25, aspectRatio: 0.66, width: house2Width },
+				'tree16_1':         { row: 14.25, col: 20, aspectRatio: 0.78, width: 100 },
+				'bush8':        { row: 14.25, col: 23.5, aspectRatio: 0.9, width: 60 },
+				'bush7':        { row: 14.5, col: 24, aspectRatio: 1.39, width: 60 },
+				'bush8_1':        { row: 14.25, col: 31.5, aspectRatio: 0.9, width: 60 },
+				'bush7_10':        { row: 14.5, col: 31, aspectRatio: 1.39, width: 60 },
+				'tree22_16':         { row: 14, col: 24, aspectRatio: 0.78, width: 100 },
+				'tree22_17':         { row: 13, col: 24, aspectRatio: 0.78, width: 100 },
+				'tree22_18':         { row: 14, col: 31, aspectRatio: 0.78, width: 100 },
+				'tree22_19':         { row: 13, col: 31, aspectRatio: 0.78, width: 100 },
+				'tree22_20':         { row: 12, col: 25, aspectRatio: 0.78, width: 100 },
+				'tree22_21':         { row: 12, col: 26.75, aspectRatio: 0.78, width: 100 },
+				'tree22_22':         { row: 12, col: 28.25, aspectRatio: 0.78, width: 100 },
+				'tree22_23':         { row: 12, col: 30, aspectRatio: 0.78, width: 100 },
+				'tree12_10':         { row: 12, col: 26, aspectRatio: 0.78, width: 100 },
+				'tree12_11':         { row: 12, col: 27.5, aspectRatio: 0.78, width: 100 },
+				'tree12_12':         { row: 12, col: 29, aspectRatio: 0.78, width: 100 },
+				
+				// Bushes under Abba arena
+				'bush1_1':        { row: 7.75, col: 24, aspectRatio: 1.39, width: 60 },
+				'bush3_1':        { row: 7.5, col: 24.5, aspectRatio: 1.39, width: 60 },
+				'bush4_1':        { row: 7.75, col: 25, aspectRatio: 1.39, width: 60 },
+				'bush6_1':        { row: 7.5, col: 25.5, aspectRatio: 1.39, width: 60 },
+				'bush7_2':        { row: 7.75, col: 26, aspectRatio: 1.39, width: 60 },
+				'bush1_2':        { row: 7.5, col: 26.5, aspectRatio: 1.39, width: 60 },
+				'bush3_2':        { row: 7.75, col: 27, aspectRatio: 1.39, width: 60 },
+				'bush4_2':        { row: 7.5, col: 27.5, aspectRatio: 1.39, width: 60 },
+				'bush6_2':        { row: 7.75, col: 28, aspectRatio: 1.39, width: 60 },
+				'bush7_3':        { row: 7.5, col: 28.5, aspectRatio: 1.39, width: 60 },
+				'bush1_3':        { row: 7.75, col: 29, aspectRatio: 1.39, width: 60 },
+				
+				// Houses north of Abba arena
+				'house3_12':        { row: 0, col: 29, aspectRatio: 0.66, width: house2Width },
+				'house3_13':        { row: 0, col: 30, aspectRatio: 0.66, width: house2Width },
+				'house3_17':        { row: 0, col: 31, aspectRatio: 0.66, width: house2Width },
+				'house3_14':        { row: 1, col: 30, aspectRatio: 0.66, width: house2Width },
+				'house3_15':        { row: 1, col: 31, aspectRatio: 0.66, width: house2Width },
+				'house3_16':        { row: 2, col: 31, aspectRatio: 0.66, width: house2Width },
+				
+				// Bushes to the right of the restaurant
+				'bush1_5':        { row: 11, col: 20, aspectRatio: 1.39, width: 60 },
+				'bush2_3':        { row: 10.75, col: 20.5, aspectRatio: 1.39, width: 60 },
+				'bush3_4':        { row: 11, col: 21, aspectRatio: 1.39, width: 60 },
+				'bush4_3':        { row: 10, col: 22, aspectRatio: 1.39, width: 60 },
+				'bush5_2':        { row: 9.75, col: 22.5, aspectRatio: 1.39, width: 60 },
+				'bush6_3':        { row: 10, col: 23, aspectRatio: 1.39, width: 60 },
+				
+				'bush2_4':        { row: 7.5, col: 17, aspectRatio: 1.39, width: 60 },
+				'bush1_6':        { row: 7.5, col: 18, aspectRatio: 1.39, width: 60 },
+				'bush3_5':        { row: 7.25, col: 17.5, aspectRatio: 1.39, width: 60 },
+				
+				'bush2_5':        { row: 6.5, col: 20, aspectRatio: 1.39, width: 60 },
+				'bush1_7':        { row: 6.25, col: 19.5, aspectRatio: 1.39, width: 60 },
+				'bush3_6':        { row: 6.5, col: 19, aspectRatio: 1.39, width: 60 },
+				
+				'bush1_8':        { row: 8.5, col: 14, aspectRatio: 1.39, width: 60 },
+				'bush2_6':        { row: 8.75, col: 14.5, aspectRatio: 1.39, width: 60 },
+				'bush3_7':        { row: 8.5, col: 15, aspectRatio: 1.39, width: 60 },
+				'bush4_4':        { row: 8.75, col: 15.5, aspectRatio: 1.39, width: 60 },
+				'bush5_3':        { row: 8.5, col: 16, aspectRatio: 1.39, width: 60 },				
+				
+				
+            };
+            
+            const pathCoordinates = [
+                [10, 0], [10, 1], [10, 2], [9, 2], [8, 2], [8, 3], [7, 3], [7,4], [6, 4], [6, 5], [6, 6], [6, 7], [6, 8], [7, 8], [7, 9], [8, 9], [8, 10], [9,10],  [10, 10], [11, 10], [11, 11], [11, 12], [12,12], [12, 13], [12, 14], [13, 14],[13, 15], [14, 15], [14, 16], [14, 17], [14, 18], [14, 19], [13, 19], [13, 20], [12, 20], [12, 21], [12, 22], [11, 22], [11, 23], [11, 24], [10, 24], [9, 24], [9, 25], [9, 26], [9, 27], [9, 28], [9, 29], [9, 30], [8, 30], [7, 30], [7, 29], [7, 28], [7, 27], [7, 26], [7, 25], [7, 24],
+            ];
+            
+            const waterCoordinates = [
+                [13, 0], [13, 1], [13, 2], [13, 3], [13, 4], [12, 4], [11, 4], [11, 5], [10, 5], [10, 6], [10, 7], [11, 7], [11, 8], [12, 8], [12, 9], [12, 10], [12, 11],
+				[10, 12], [10, 13], [9, 13], [8, 13], [8, 14], [8, 15], [8, 16], [7, 16], [7, 17], [7, 18], [6, 18], [6, 19], [6, 20], [6, 21], [7, 21], [8, 21], [8, 22], [8, 23], [9, 23],
+				[10, 25], [10, 26], [10, 27], [10, 28], [10, 29], [10, 30], [11, 30], [11, 31]
+            ];
+
+            // --- Positioning and Layout Functions ---
+            function positionElementsFromGrid() {
+                // Uses global numCols. createBackgroundGrid must be called first to set it.
+                if (numCols === 0 && gameContainer.offsetWidth > 0) { 
+                    // Failsafe if numCols wasn't set, try to quickly get it.
+                    // This is a fallback, createBackgroundGrid should handle it.
+                    console.warn("numCols was 0 in positionElementsFromGrid, attempting recalculation. Ensure createBackgroundGrid is called first.");
+                    numCols = Math.ceil(gameContainer.offsetWidth / gridCellSize);
+                }
+
+                for (const id in buildingData) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+
+                    const data = buildingData[id];
+                    let elWidth, elHeight;
+
+                    if (data.width) {
+                        elWidth = data.width;
+                        elHeight = elWidth / data.aspectRatio;
+                    } else if (data.height) {
+                        elHeight = data.height;
+                        elWidth = elHeight * data.aspectRatio;
+                    } else {
+                        continue;
+                    }
+                    
+                    const anchorX = (data.col * gridCellSize) + (gridCellSize / 2);
+                    const anchorY = (data.row * gridCellSize) + gridCellSize;
+                    const elTop = anchorY - elHeight;
+                    const elLeft = anchorX - (elWidth / 2);
+
+                    el.style.position = 'absolute';
+                    el.style.width = elWidth + 'px';
+                    el.style.height = elHeight + 'px';
+                    el.style.top = elTop + 'px';
+                    el.style.left = elLeft + 'px';
+                    if (numCols > 0) {
+                        el.style.zIndex = Math.floor(data.row * numCols) + Math.floor(data.col);
+                    }
+                }
+            }
+            
+            function centerViewOnCharacter() {
+                const charCenterX = charPos.x + (character.offsetWidth / 2);
+                const charCenterY = charPos.y + (character.offsetHeight / 2);
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+                const targetScrollLeft = charCenterX - viewportWidth / 2;
+                const targetScrollTop = charCenterY - viewportHeight / 2;
+                
+                window.scrollTo({ top: targetScrollTop, left: targetScrollLeft, behavior: 'instant' });
+            }
+
+            function createBackgroundGrid() {
+                backgroundGrid.innerHTML = ''; 
+                const containerWidth = gameContainer.offsetWidth;
+                const containerHeight = gameContainer.offsetHeight;
+                numCols = Math.ceil(containerWidth / gridCellSize); // Update global numCols
+                const numRows = Math.ceil(containerHeight / gridCellSize);
+                
+                backgroundGrid.style.gridTemplateColumns = `repeat(${numCols}, ${gridCellSize}px)`;
+                backgroundGrid.style.gridTemplateRows = `repeat(${numRows}, ${gridCellSize}px)`;
+
+                for (let r = 0; r < numRows; r++) {
+                    for (let c = 0; c < numCols; c++) {
+                        const cell = document.createElement('div');
+                        cell.classList.add('grid-cell');
+                        cell.dataset.row = r;
+                        cell.dataset.col = c;
+                        // cell.textContent = `${r},${c}`; // Keep this commented if you don't want coordinates on cells
+
+                        if (pathCoordinates.some(coord => coord[0] === r && coord[1] === c)) {
+                            cell.classList.add('path-cell');
+                        } else if (waterCoordinates.some(coord => coord[0] === r && coord[1] === c)) {
+                            cell.classList.add('water-cell');
+                        } else {
+                            cell.classList.add('grass-cell');
+                        }
+                        backgroundGrid.appendChild(cell);
+                    }
+                }
+            }
+
+            // --- Character and Interaction Logic ---
+            function defineWalkableAreas() {
+                walkableAreas = []; 
+                const pathCells = document.querySelectorAll('.grid-cell.path-cell');
+                pathCells.forEach(cell => {
+                    walkableAreas.push({
+                        x: cell.offsetLeft, y: cell.offsetTop,
+                        width: cell.offsetWidth, height: cell.offsetHeight,
+                        type: 'path'
+                    });
+                });
+
+                locationElements.forEach(building => {
+                    const accessWidth = building.offsetWidth * 0.4; 
+                    const accessHeight = character.offsetHeight * 0.75; 
+                    const accessX = building.offsetLeft + (building.offsetWidth / 2) - (accessWidth / 2); 
+                    const accessY = building.offsetTop + building.offsetHeight - accessHeight; 
+
+                    walkableAreas.push({
+                        x: accessX, y: accessY,
+                        width: accessWidth, height: accessHeight,
+                        type: 'building_access',
+                        buildingId: building.id
+                    });
+                });
+            }
+
+            function isPositionWalkable(targetX, targetY, charWidth, charHeight) {
+                const charRect = { x: targetX, y: targetY, width: charWidth, height: charHeight };
+                for (const area of walkableAreas) {
+                    if (isColliding(charRect, area)) {
+                        if (area.type === 'path' || area.type === 'building_access') {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            
+            function updateCharacterZIndex() {
+                // Uses global numCols. createBackgroundGrid must be called first.
+                if (numCols === 0) {
+                     // console.warn("numCols is 0 in updateCharacterZIndex. Character z-index might be incorrect.");
+                    return; 
+                }
+                const charAnchorY = charPos.y + character.offsetHeight;
+                const charAnchorX = charPos.x + character.offsetWidth / 2;
+                const charRow = Math.floor(charAnchorY / gridCellSize);
+                const charCol = Math.floor(charAnchorX / gridCellSize);
+                character.style.zIndex = (charRow * numCols) + charCol;
+            }
+
+            function updateCharacterPosition() {
+                character.style.left = charPos.x + 'px';
+                character.style.top = charPos.y + 'px';
+                updateCharacterZIndex();
+            }
+            
+            function initializeCharacterPosition() {
+                const gameRect = gameContainer.getBoundingClientRect();
+                const charWidth = character.offsetWidth;
+                const charHeight = character.offsetHeight;
+                const cellTopY = characterStartCoord.row * gridCellSize;
+                const cellLeftX = characterStartCoord.col * gridCellSize;
+                
+                charPos.x = cellLeftX + (gridCellSize / 2) - (charWidth / 2);
+                charPos.y = cellTopY + (gridCellSize / 2) - (charHeight / 2);
+                
+                charPos.x = Math.max(0, Math.min(charPos.x, gameRect.width - charWidth));
+                charPos.y = Math.max(0, Math.min(charPos.y, gameRect.height - charHeight));
+                
+                updateCharacterPosition();
+            }
+            
+            function isColliding(rect1, rect2) {
+                return rect1.x < rect2.x + rect2.width &&
+                       rect1.x + rect1.width > rect2.x &&
+                       rect1.y < rect2.y + rect2.height &&
+                       rect1.y + rect1.height > rect2.y;
+            }
+			
+            function showHoverDialog(locationEl) {
+				// if (activeLocation && activeLocation.id == locationEl.id) return; // Don't show hover if character dialog is already showing for same element
+                const data = buildingData[locationEl.id];
+                if (!data) return;
+
+                hoverDialogLinkWrapper.href = data.dialogLink || '#';
+                hoverDialogLinkWrapper.style.pointerEvents = data.dialogLink ? 'auto' : 'none';
+
+                const dialogX = locationEl.offsetLeft + (locationEl.offsetWidth / 2);
+                const dialogY = locationEl.offsetTop;
+				
+                hoverDialogBox.classList.add('hidden'); // Always hide text box if custom image is used for hover
+                const dialogWidth = data.dialogImageWidth || 200; // Default hover image width
+                const dialogHeight = data.dialogImageHeight || 100; // Default hover image height
+                
+                hoverCustomDialogImage.src = data.dialogImage || 'https://placehold.co/200x100/eee/ccc?text=Info'; // Fallback image
+                hoverCustomDialogImage.style.width = `${dialogWidth}px`;
+                hoverCustomDialogImage.style.height = `${dialogHeight}px`;
+                
+                hoverDialogLinkWrapper.style.left = `${dialogX - (dialogWidth / 2)}px`;
+                let topOffset = (locationEl.id === "town-hall") ? 100 : 50;
+                hoverDialogLinkWrapper.style.top = `${dialogY - dialogHeight + topOffset}px`;
+                
+                hoverCustomDialogImageContainer.classList.remove('hidden');
+                hoverDialogLinkWrapper.style.display = 'block';
+            }
+
+            function hideHoverDialog() {
+                hoverDialogLinkWrapper.style.display = 'none';
+            }
+			
+            function showCharacterDialog(locationEl) {
+                activeLocation = locationEl; // Set this building as the actively interacted one
+                const data = buildingData[locationEl.id];
+                if (!data) return; // Should not happen if called correctly
+
+                dialogLinkWrapper.href = data.dialogLink || '#';
+                dialogLinkWrapper.style.pointerEvents = data.dialogLink ? 'auto' : 'none';
+
+                const dialogX = locationEl.offsetLeft + (locationEl.offsetWidth / 2);
+                const dialogY = locationEl.offsetTop;
+				
+                dialogBox.classList.add('hidden'); // Always hide text box if custom image is used
+                const dialogWidth = data.dialogImageWidth || 200;
+                const dialogHeight = data.dialogImageHeight || 100;
+                customDialogImage.src = data.dialogImage || 'https://placehold.co/200x100/eee/ccc?text=Welcome!'; // Fallback image
+                customDialogImage.style.width = `${dialogWidth}px`;
+                customDialogImage.style.height = `${dialogHeight}px`;
+
+                dialogLinkWrapper.style.left = `${dialogX - (dialogWidth / 2)}px`;
+                let topOffset = (locationEl.id === "town-hall") ? 100 : 50;
+                dialogLinkWrapper.style.top = `${dialogY - dialogHeight + topOffset}px`;
+                customDialogImageContainer.classList.remove('hidden');
+				
+				dialogLinkWrapper.style.display = 'block';
+
+                // Set character appearance for interaction
+                const interaction = data.interaction || defaultCharacterState;
+                characterImage.src = interaction.charImage || defaultCharacterState.src;
+                character.style.width = (interaction.charWidth || defaultCharacterState.width) + 'px';
+                character.style.height = (interaction.charHeight || defaultCharacterState.height) + 'px';
+
+                // Handle special animations only for character dialog
+                if (locationEl.id === 'town-hall') {
+                     createConfettiEffect(locationEl);
+					 animatePeople('king-and-queen', 16, 27, 13, 130);
+                } else if (locationEl.id === 'concert-venue') {
+					 createLightBeamEffect(locationEl);
+                }
+            }
+			
+            function hideCharacterDialog() {
+                if (!activeLocation) return; // No active dialog to hide
+                
+                // Stop special effects if they were active for this specific location
+                if(activeLocation.id === 'town-hall') {
+                     hidePeople('king-and-queen', 16); 
+                } else if (activeLocation.id === 'concert-venue') {
+                    activeLightBeams.forEach(beam => beam.remove());
+                    activeLightBeams = [];
+                }
+
+                // Revert character to its default appearance
+                characterImage.src = defaultCharacterState.src;
+                character.style.width = defaultCharacterState.width + 'px';
+                character.style.height = defaultCharacterState.height + 'px';
+
+                dialogLinkWrapper.style.display = 'none'; // Hide the character's dialog wrapper
+                activeLocation = null; // Clear the active location
+            }
+            
+
+            function checkBuildingInteraction() {
+                const charRect = { x: charPos.x, y: charPos.y, width: character.offsetWidth, height: character.offsetHeight };
+                let foundActiveBuilding = null;
+                
+                for (const area of walkableAreas) {
+                    if (area.type === 'building_access' && isColliding(charRect, area)) {
+                        foundActiveBuilding = document.getElementById(area.buildingId);
+                        break; 
+                    }
+                }
+                
+                if (activeLocation && !foundActiveBuilding) {
+                    // Character has moved out of the active location's zone
+                    hideCharacterDialog();
+                } else if (foundActiveBuilding && activeLocation !== foundActiveBuilding) {
+                    // Character has moved into a new location's zone
+                    hideCharacterDialog(); // Hide old one (if any)
+                    showCharacterDialog(foundActiveBuilding);
+                } else if (foundActiveBuilding && !activeLocation) {
+                    // Character moved into a zone and no dialog was active
+                    showCharacterDialog(foundActiveBuilding);
+                }
+                // If foundActiveBuilding is the same as activeLocation, nothing needs to change for character dialog
+            }
+            
+            function moveCharacter(dx, dy) {
+                const gameRect = gameContainer.getBoundingClientRect(); 
+                const charWidth = character.offsetWidth;
+                const charHeight = character.offsetHeight;
+                let nextX = charPos.x + dx;
+                let nextY = charPos.y + dy;
+                nextX = Math.max(0, Math.min(nextX, gameRect.width - charWidth));
+                nextY = Math.max(0, Math.min(nextY, gameRect.height - charHeight));
+                
+                if (isPositionWalkable(nextX, nextY, charWidth, charHeight)) {
+                    charPos.x = nextX;
+                    charPos.y = nextY;
+                    updateCharacterPosition();
+                    centerViewOnCharacter();
+                    // Set walking animation ONLY if not in an active interaction state that changes character
+                    if (!activeLocation || !(buildingData[activeLocation.id] && buildingData[activeLocation.id].interaction)) {
+                        if (dx < 0) { characterImage.src = 'images/couple_left.gif'; } 
+                        else if (dx > 0) { characterImage.src = 'images/couple_right.gif'; } 
+                        else if (dy !== 0) { characterImage.src = 'images/couple.png'; } // Or a specific up/down if you have them
+                    }
+                    checkBuildingInteraction(); 
+                }
+            }
+
+            // --- Event Listeners and Initialization ---
+            document.addEventListener('keydown', (event) => {
+                const key = event.key.toLowerCase();
+                if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(key)) { 
+                    event.preventDefault();
+                    switch (key) {
+                        case 'arrowup': case 'w': moveCharacter(0, -step); break;
+                        case 'arrowdown': case 's': moveCharacter(0, step); break;
+                        case 'arrowleft': case 'a': moveCharacter(-step, 0); break;
+                        case 'arrowright': case 'd': moveCharacter(step, 0); break;
+                    }
+                }
+            });
+
+            if (touchControlsContainer) {
+                const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+                touchControlsContainer.style.display = (isTouchDevice || window.innerWidth <= 768) ? 'flex' : 'none';
+                touchControlsContainer.addEventListener('click', (event) => {
+                    const button = event.target.closest('.control-button');
+                    if (button && button.dataset.key) {
+                        event.preventDefault(); 
+                        const key = button.dataset.key;
+                        switch (key) {
+                            case 'ArrowUp': moveCharacter(0, -step); break;
+                            case 'ArrowDown': moveCharacter(0, -step); break; // Corrected from -step
+                            case 'ArrowLeft': moveCharacter(-step, 0); break;
+                            case 'ArrowRight': moveCharacter(step, 0); break;
+                        }
+                    }
+                });
+            }
+
+            function handleResize() {
+                createBackgroundGrid(); // Call this first to update numCols
+                positionElementsFromGrid(); 
+                defineWalkableAreas();
+				checkBuildingInteraction(); // Re-check character interaction based on new positions/sizes
+                // If a dialog was active, it might need repositioning based on new element positions
+                if (activeLocation) { 
+                    showCharacterDialog(activeLocation); // Re-show to update position
+                }
+                // Hover dialogs will naturally update on next mouseenter if building positions change
+                
+                const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+                if (touchControlsContainer) {
+                    touchControlsContainer.style.display = (isTouchDevice || window.innerWidth <= 768) ? 'flex' : 'none';
+                }
+                centerViewOnCharacter(); 
+            }
+            
+            // --- Animation Functions (Confetti, Light Beams, etc.) ---
+            function createConfettiEffect(buildingEl) {
+                if (confettiAnimationFrameId) {
+                    cancelAnimationFrame(confettiAnimationFrameId);
+                    activeConfetti.forEach(c => c.el.remove());
+                    activeConfetti = [];
+                }
+                const startX = buildingEl.offsetLeft + (buildingEl.offsetWidth / 2);
+                const startY = buildingEl.offsetTop + 20;
+                const confettiCount = 60;
+                const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800'];
+                for (let i = 0; i < confettiCount; i++) {
+                    const confettiEl = document.createElement('div');
+                    confettiEl.classList.add('confetti-piece');
+                    const angle = Math.random() * Math.PI - (Math.PI / 2); 
+                    const velocity = Math.random() * 8 + 5;
+                    const confetti = { el: confettiEl, x: startX, y: startY, vx: Math.sin(angle) * velocity, vy: -Math.cos(angle) * velocity, life: 1, gravity: 0.15, drag: 0.98, rotation: Math.random() * 360 };
+                    confetti.el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.el.style.left = `${confetti.x}px`;
+                    confetti.el.style.top = `${confetti.y}px`;
+                    const buildingZIndex = parseInt(window.getComputedStyle(buildingEl).zIndex, 10) || 0;
+                    confetti.el.style.zIndex = buildingZIndex - 1;
+                    activeConfetti.push(confetti);
+                    gameContainer.appendChild(confettiEl);
+                }
+                if (!confettiAnimationFrameId) animateConfetti();
+            }
+            
+            function animateConfetti() {
+                activeConfetti = activeConfetti.filter(confetti => {
+                    confetti.vx *= confetti.drag;
+                    confetti.vy += confetti.gravity;
+                    confetti.x += confetti.vx;
+                    confetti.y += confetti.vy;
+                    confetti.life -= 0.01;
+                    confetti.rotation += confetti.vx * 2;
+                    if (confetti.life <= 0) {
+                        confetti.el.remove();
+                        return false;
+                    }
+                    confetti.el.style.opacity = confetti.life;
+                    confetti.el.style.left = `${confetti.x}px`;
+                    confetti.el.style.top = `${confetti.y}px`;
+                    confetti.el.style.transform = `rotate(${confetti.rotation}deg)`;
+                    return true;
+                });
+                if (activeConfetti.length > 0) {
+                    confettiAnimationFrameId = requestAnimationFrame(animateConfetti);
+                } else {
+                    cancelAnimationFrame(confettiAnimationFrameId);
+                    confettiAnimationFrameId = null;
+                }
+            }
+
+            function createLightBeamEffect(buildingEl) {
+                activeLightBeams.forEach(beam => beam.remove()); 
+                activeLightBeams = [];
+                const originX = buildingEl.offsetLeft + (buildingEl.offsetWidth / 2);
+                const originY = buildingEl.offsetTop + buildingEl.offsetHeight - 40; 
+                const buildingZIndex = parseInt(window.getComputedStyle(buildingEl).zIndex, 10) || 0;
+                const beamCount = 20;
+                const beamColors = ['rgba(255,255,0,0.5)', 'rgba(0,255,255,0.5)', 'rgba(255,0,255,0.5)', 'rgba(128,0,128,0.5)', 'rgba(0,128,0,0.5)', 'rgba(255,165,0,0.5)'];
+                for (let i = 0; i < beamCount; i++) {
+                    const beam = document.createElement('div');
+                    beam.classList.add('light-beam');
+                    beam.style.backgroundColor = beamColors[Math.floor(Math.random() * beamColors.length)];
+                    beam.style.width = `${Math.random() * 10 + 5}px`;
+                    beam.style.height = '0px';
+                    beam.style.left = `${originX}px`; 
+                    beam.style.top = `${originY}px`;   
+                    const angle = (Math.random() * 180) - 90; 
+                    beam.style.transform = `translateX(-50%) translateY(-100%) rotate(${angle}deg)`; 
+                    beam.style.zIndex = buildingZIndex - 1; 
+                    lightBeamContainer.appendChild(beam);
+                    activeLightBeams.push(beam);
+                    setTimeout(() => {
+                        if (beam.parentNode) beam.remove();
+                        activeLightBeams = activeLightBeams.filter(b => b !== beam);
+                    }, 9000);
+                }
+            }
+            
+            function animatePeople(elementId, startRow, startCol, endRow, elementWidth) {
+                const peopleElement = document.getElementById(elementId);
+                if (!peopleElement) return;
+                if (peopleElement.animationTimeout) clearTimeout(peopleElement.animationTimeout);
+                const startX = (startCol * gridCellSize) + (gridCellSize / 2) - (elementWidth / 2);
+                const startY = startRow * gridCellSize;
+                const endY = endRow * gridCellSize;
+                peopleElement.style.transition = 'none';
+                peopleElement.style.display = 'block';
+                peopleElement.style.opacity = '0';
+                peopleElement.style.left = startX + 'px';
+                peopleElement.style.top = startY + 'px';
+                void peopleElement.offsetWidth;
+                peopleElement.animationTimeout = setTimeout(() => {
+                    peopleElement.style.transition = 'top 2s ease-out, opacity 1s ease-in';
+                    peopleElement.style.top = endY + 'px';
+                    peopleElement.style.opacity = '1';
+                }, 50);
+            }
+			
+			function hidePeople(elementId, startRow) {
+                const people = document.getElementById(elementId);
+                if (!people) return;
+                if (people.animationTimeout) clearTimeout(people.animationTimeout);
+                const startY = startRow * gridCellSize;
+                people.style.transition = 'top 2s ease-in, opacity 2s ease-out';
+                people.style.top = startY + 'px';
+                people.style.opacity = '0';
+                people.animationTimeout = setTimeout(() => { people.style.display = 'none'; }, 2000);
+			}
+
+            let lastFlippedTiles = [];
+            function animateWater() {
+                const waterCells = document.querySelectorAll('.water-cell');
+                if (waterCells.length === 0) return;
+                lastFlippedTiles.forEach(tile => tile.classList.remove('water-cell-flipped'));
+                lastFlippedTiles = [];
+                const tilesToFlip = new Set();
+                const numToFlip = Math.min(10, waterCells.length);
+                while (tilesToFlip.size < numToFlip) {
+                    tilesToFlip.add(waterCells[Math.floor(Math.random() * waterCells.length)]);
+                }
+                tilesToFlip.forEach(tile => {
+                    tile.classList.add('water-cell-flipped');
+                    lastFlippedTiles.push(tile);
+                });
+            }
+            
+            // --- INITIALIZATION ---
+            function init() {
+                // Set initial character state
+                characterImage.src = defaultCharacterState.src;
+                character.style.width = defaultCharacterState.width + 'px';
+                character.style.height = defaultCharacterState.height + 'px';
+
+                createBackgroundGrid();
+                positionElementsFromGrid(); 
+                defineWalkableAreas(); 
+                initializeCharacterPosition(); 
+				
+				// Add hover event listeners
+                locationElements.forEach(el => {
+                    el.addEventListener('mouseenter', () => showHoverDialog(el));
+                    el.addEventListener('mouseleave', () => hideHoverDialog());
+                });
+                window.addEventListener('resize', handleResize);
+                handleResize(); // Initial call to set up based on current size
+                
+                // Start the water animation interval
+                setInterval(animateWater, 1000);
+            }
+
+            init();
+        });
+    </script>
+
+</body>
 </html>
