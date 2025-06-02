@@ -1100,8 +1100,8 @@
                     centerViewOnCharacter();
                     // Set walking animation ONLY if not in an active interaction state that changes character
                     if (!activeLocation || !(buildingData[activeLocation.id] && buildingData[activeLocation.id].interaction)) {
-                        if (dx < 0) { characterImage.src = 'images/couple_left.gif'; } 
-                        else if (dx > 0) { characterImage.src = 'images/couple_right.gif'; } 
+                        if (dx < 0) { characterImage.src = 'images/couple_left.png'; } 
+                        else if (dx > 0) { characterImage.src = 'images/couple_right.png'; } 
                         else if (dy !== 0) { characterImage.src = 'images/couple.png'; } // Or a specific up/down if you have them
                     }
                     checkBuildingInteraction(); 
