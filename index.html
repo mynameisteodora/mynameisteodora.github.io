@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Teo and Seb's Wedding</title>
+	<link rel="icon" type="image/png" href="images/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Make the body scrollable and set a background color */
@@ -41,10 +42,6 @@
             pointer-events: none; 
         }
         
-        #touch-controls {
-            display: none; 
-        }
-        
         .building { 
             display: flex;
             align-items: center;
@@ -73,30 +70,13 @@
         }
 		
 		#king-and-queen {
-			width: 120px;
+			width: 140px;
 			height: 160px;
 			z-index: 950; /* Above most elements but below the dialog */
 			transition: top 2s ease-out, opacity 1s ease-out;
 			opacity: 0;
             image-rendering: pixelated;
 		}
-
-        #title-image-container { 
-            width: 100%;
-            text-align: center; 
-            padding-top: 0rem; 
-            padding-bottom: 0.5rem; 
-            position: absolute; 
-            top: 1px; 
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000; /* Title stays on top */
-        }
-        #title-image {
-            max-height: 160px; 
-            width: auto;      
-            display: inline-block; 
-        }
 
         #game-container {
             background-color: #d1e7dd;
@@ -186,21 +166,12 @@
 		 }
 				
          @media (max-width: 768px), (hover: none) and (pointer: coarse) {
-             #touch-controls { display: flex; }
-             #character { width: 30px !important; height: 40px !important; } 
              #dialog-box, #hover-dialog-box { padding: 0.5rem; }
              #dialog-location, #hover-dialog-location { font-size: 0.8rem; }
              #dialog-time, #hover-dialog-time { font-size: 0.65rem; }
              .confetti-piece {
                  width: 6px;
                  height: 10px;
-             }
-             #title-image {
-                 max-height: 30px; 
-             }
-             #title-image-container {
-                  padding-top: 0.5rem;
-                  top: 5px;
              }
  			.light-beam {
  			                 animation: radiate-mobile 3s ease-out 0s 1 normal forwards;
@@ -509,16 +480,6 @@
 				<img id="king-and-queen" src="images/king_and_queen.png" alt="King and Queen" class="absolute">
 				<div id="light-beam-container" class="absolute w-full h-full pointer-events-none"></div>
             </div>
-
-            <div id="touch-controls" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-30 flex flex-col items-center space-y-1 p-2 bg-gray-800 bg-opacity-50 rounded-lg">
-                <button data-key="ArrowUp" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">▲</button>
-                <div class="flex space-x-1">
-                    <button data-key="ArrowLeft" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">◄</button>
-                    <button data-key="ArrowDown" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">▼</button>
-                    <button data-key="ArrowRight" class="control-button bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white font-bold py-2 px-4 rounded-full shadow-md w-14 h-14 flex items-center justify-center text-xl">►</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
@@ -558,7 +519,6 @@
             const hoverCustomDialogImage = document.getElementById('hover-custom-dialog-image');
 			
             const locationElements = Array.from(document.querySelectorAll('.location')); 
-            const touchControlsContainer = document.getElementById('touch-controls');
 			const lightBeamContainer = document.getElementById('light-beam-container');
 
             // --- Game State Variables ---
@@ -1348,26 +1308,6 @@
                 }
             });
 
-            if (touchControlsContainer) {
-                const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-                touchControlsContainer.style.display = (isTouchDevice || window.innerWidth <= 768) ? 'flex' : 'none';
-                touchControlsContainer.addEventListener('click', (event) => {
-                    if (isMoving) return;
-
-                    const button = event.target.closest('.control-button');
-                    if (button && button.dataset.key) {
-                        event.preventDefault(); 
-                        const key = button.dataset.key;
-                        switch (key) {
-                            case 'ArrowUp': moveCharacter(0, -step); break;
-                            case 'ArrowDown': moveCharacter(0, step); break; 
-                            case 'ArrowLeft': moveCharacter(-step, 0); break;
-                            case 'ArrowRight': moveCharacter(step, 0); break;
-                        }
-                    }
-                });
-            }
-
             // REWRITTEN: Click listener for pathfinding to buildings or paths.
             gameContainer.addEventListener('click', (event) => {
                 if (event.target.closest('a')) {
@@ -1430,9 +1370,6 @@
                 }
                 
                 const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-                if (touchControlsContainer) {
-                    touchControlsContainer.style.display = (isTouchDevice || window.innerWidth <= 768) ? 'flex' : 'none';
-                }
                 centerViewOnCharacter(); 
             }
             
