@@ -211,9 +211,51 @@
  			                100% { height: 120px; opacity: 0;}
  			            }
          }
+		 
+	     #loading-screen {
+	         position: fixed;
+	         top: 0;
+	         left: 0;
+	         width: 100vw;
+	         height: 100vh;
+	         background-color: #d1e7dd; /* Same as game background for a smooth transition */
+	         display: flex;
+	         flex-direction: column;
+	         align-items: center;
+	         justify-content: center;
+	         z-index: 9999; /* Ensure it's on top of everything */
+	         font-family: 'Inter', sans-serif;
+	         color: #333;
+	         font-size: 1.2rem;
+	     }
+
+	     .spinner {
+	         width: 60px;
+	         height: 60px;
+	         border: 8px solid rgba(0, 0, 0, 0.1);
+	         border-left-color: #009688; /* A nice teal color */
+	         border-radius: 50%;
+	         animation: spin 1.2s linear infinite;
+	         margin-bottom: 20px;
+	     }
+
+	     @keyframes spin {
+	         to {
+	             transform: rotate(360deg);
+	         }
+	     }
+
+	     /* Initially hide the game world */
+	     #game-world {
+	         display: none;
+	     }
     </style>
 </head>
 <body class="bg-gray-100">
+	<div id="loading-screen">
+        <div class="spinner"></div>
+        <p>Getting ready for the wedding...</p>
+    </div>
     <div id="game-world">
         <div id="game-wrapper" class="w-full h-full flex flex-col relative"> 
             <div id="game-container" class="flex-grow relative overflow-hidden select-none"> 
@@ -480,7 +522,19 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+		window.addEventListener('load', () => {
+        // document.addEventListener('DOMContentLoaded', () => {
+			
+	        const loadingScreen = document.getElementById('loading-screen');
+	        const gameWorld = document.getElementById('game-world');
+
+	        // Hide the loading screen
+	        loadingScreen.style.display = 'none';
+
+	        // Show the game world
+	        // Using 'block' is fine here as it's the default for a div
+	        gameWorld.style.display = 'block';
+			
             // --- DOM Element References ---
             const gameContainer = document.getElementById('game-container');
             const backgroundGrid = document.getElementById('background-grid'); 
