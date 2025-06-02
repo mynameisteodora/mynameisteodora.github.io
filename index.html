@@ -326,7 +326,7 @@
                 <img id="concert-venue" src="images/abba_arena.png" alt="Concert Venue" class="location building building-image" data-name="Concert Venue">
                 
                 <div id="character" class="absolute"> 
-                     <img id="character-image" src="images/couple_jump.gif" alt="Character Couple">
+                     <img id="character-image" src="images/couple.png" alt="Character Couple">
                 </div>
                 
                 <!-- Wrapper Link for all dialogs -->
@@ -516,57 +516,61 @@
             let confettiAnimationFrameId = null; 
 			let activeLightBeams = [];
             let numCols = 0; // Ensure this is global and initialized
+            let isMoving = false; // Flag to prevent multiple move commands
+            let movementInterrupted = false; 
+            let activeMoveInterval = null;
+			let hideHoverDialogTimeout = null;
 
             // --- Game Configuration ---
             const gridCellSize = 60; 
-            const characterStartCoord = { row: 9, col: 0 };
+            const characterStartCoord = { row: 10, col: 0 };
 			const house1Width = 90;
 			const house2Width = 80;
 
-            // NEW: Define a default state for the character
+            // Define a default state for the character
             const defaultCharacterState = {
                 src: 'images/couple.png',
-                width: 100,
+                width: 150,
                 height: 160
             };
             
-            // UPDATED: Building data now includes Google Maps links and interactions.
+            // Building data now includes Google Maps links and interactions.
             const buildingData = {
                 'town-hall': { 
                     row: 5, col: 6, aspectRatio: 1.22, width: 350,
-					dialogImage: 'images/town_hall_dialog.gif', // <-- Custom dialog image
+					dialogImage: 'images/town_hall_dialog.gif',
                     dialogImageWidth: 180,
                     dialogImageHeight: 180,
 					dialogLink: 'https://maps.app.goo.gl/Hd6oUJJtvgtno4yn9',
                     interaction: {
                         charImage: 'images/couple_spin.gif',
-                        charWidth: 120, 
-                        charHeight: 180 
+                        charWidth: 150, 
+                        charHeight: 160 
                     }
                 },
 				'bigBen': { row: 5, col: 18, aspectRatio: 1.17, height: 300 },
                 'restaurant': { 
 					row: 13, col: 17, aspectRatio: 0.85, height: 250,
-					dialogImage: 'images/flour_grape_dialog.gif', // <-- Custom dialog image
+					dialogImage: 'images/flour_grape_dialog.gif',
                     dialogImageWidth: 180,
                     dialogImageHeight: 180,
 					dialogLink: 'https://maps.app.goo.gl/3JFbDTZKvAFg6gzWA',
 					interaction: {
                         charImage: 'images/couple_eat.gif',
-                        charWidth: 230, 
-                        charHeight: 180 
+                        charWidth: 150, 
+                        charHeight: 160 
 					}
 				 },
                 'concert-venue': { 
                     row: 6, col: 27, aspectRatio: 1.52, height: 270,
-					dialogImage: 'images/abba_arena_dialog.gif', // <-- Custom dialog image
+					dialogImage: 'images/abba_arena_dialog.gif',
                     dialogImageWidth: 180,
                     dialogImageHeight: 180,
 					dialogLink: 'https://maps.app.goo.gl/3uEN8ZFceTF74tbr9',
                     interaction: {
                         charImage: 'images/couple_dance.gif',
-                        charWidth: 230, 
-                        charHeight: 180
+                        charWidth: 150, 
+                        charHeight: 160
                     }
                 },	
 				'bhamPalace': { row: 14, col: 27.5, aspectRatio: 2.47, height: 180 },
@@ -796,6 +800,9 @@
                 [10, 0], [10, 1], [10, 2], [9, 2], [8, 2], [8, 3], [7, 3], [7,4], [6, 4], [6, 5], [6, 6], [6, 7], [6, 8], [7, 8], [7, 9], [8, 9], [8, 10], [9,10],  [10, 10], [11, 10], [11, 11], [11, 12], [12,12], [12, 13], [12, 14], [13, 14],[13, 15], [14, 15], [14, 16], [14, 17], [14, 18], [14, 19], [13, 19], [13, 20], [12, 20], [12, 21], [12, 22], [11, 22], [11, 23], [11, 24], [10, 24], [9, 24], [9, 25], [9, 26], [9, 27], [9, 28], [9, 29], [9, 30], [8, 30], [7, 30], [7, 29], [7, 28], [7, 27], [7, 26], [7, 25], [7, 24],
             ];
             
+            // Create a Set for faster path coordinate lookups (O(1) average time complexity)
+            const pathCoordsSet = new Set(pathCoordinates.map(p => `${p[0]},${p[1]}`));
+
             const waterCoordinates = [
                 [13, 0], [13, 1], [13, 2], [13, 3], [13, 4], [12, 4], [11, 4], [11, 5], [10, 5], [10, 6], [10, 7], [11, 7], [11, 8], [12, 8], [12, 9], [12, 10], [12, 11],
 				[10, 12], [10, 13], [9, 13], [8, 13], [8, 14], [8, 15], [8, 16], [7, 16], [7, 17], [7, 18], [6, 18], [6, 19], [6, 20], [6, 21], [7, 21], [8, 21], [8, 22], [8, 23], [9, 23],
@@ -872,7 +879,6 @@
                         cell.classList.add('grid-cell');
                         cell.dataset.row = r;
                         cell.dataset.col = c;
-                        // cell.textContent = `${r},${c}`; // Keep this commented if you don't want coordinates on cells
 
                         if (pathCoordinates.some(coord => coord[0] === r && coord[1] === c)) {
                             cell.classList.add('path-cell');
@@ -926,9 +932,7 @@
             }
             
             function updateCharacterZIndex() {
-                // Uses global numCols. createBackgroundGrid must be called first.
                 if (numCols === 0) {
-                     // console.warn("numCols is 0 in updateCharacterZIndex. Character z-index might be incorrect.");
                     return; 
                 }
                 const charAnchorY = charPos.y + character.offsetHeight;
@@ -952,7 +956,7 @@
                 const cellLeftX = characterStartCoord.col * gridCellSize;
                 
                 charPos.x = cellLeftX + (gridCellSize / 2) - (charWidth / 2);
-                charPos.y = cellTopY + (gridCellSize / 2) - (charHeight / 2);
+                charPos.y = cellTopY + (gridCellSize / 2) + 15 - charHeight;
                 
                 charPos.x = Math.max(0, Math.min(charPos.x, gameRect.width - charWidth));
                 charPos.y = Math.max(0, Math.min(charPos.y, gameRect.height - charHeight));
@@ -968,7 +972,6 @@
             }
 			
             function showHoverDialog(locationEl) {
-				// if (activeLocation && activeLocation.id == locationEl.id) return; // Don't show hover if character dialog is already showing for same element
                 const data = buildingData[locationEl.id];
                 if (!data) return;
 
@@ -1081,7 +1084,6 @@
                     // Character moved into a zone and no dialog was active
                     showCharacterDialog(foundActiveBuilding);
                 }
-                // If foundActiveBuilding is the same as activeLocation, nothing needs to change for character dialog
             }
             
             function moveCharacter(dx, dy) {
@@ -1102,17 +1104,187 @@
                     if (!activeLocation || !(buildingData[activeLocation.id] && buildingData[activeLocation.id].interaction)) {
                         if (dx < 0) { characterImage.src = 'images/couple_left.png'; } 
                         else if (dx > 0) { characterImage.src = 'images/couple_right.png'; } 
-                        else if (dy !== 0) { characterImage.src = 'images/couple.png'; } // Or a specific up/down if you have them
+                        else if (dy !== 0) { characterImage.src = 'images/couple.png'; }
                     }
                     checkBuildingInteraction(); 
                 }
             }
 
+            // --- Pathfinding and Auto-Walk Functions ---
+            
+            /**
+             * NEW: Finds the closest path coordinate to a given pixel coordinate.
+             * @param {number} x - The x pixel coordinate.
+             * @param {number} y - The y pixel coordinate.
+             * @returns {object|null} - The closest path coordinate {row, col}, or null.
+             */
+            function findClosestPathCoord(x, y) {
+                let closestCoord = null;
+                let minDistance = Infinity;
+
+                pathCoordinates.forEach(coord => {
+                    const [row, col] = coord;
+                    const cellCenterX = col * gridCellSize + (gridCellSize / 2);
+                    const cellCenterY = row * gridCellSize + (gridCellSize / 2);
+                    const distance = Math.sqrt(Math.pow(x - cellCenterX, 2) + Math.pow(y - cellCenterY, 2));
+
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestCoord = { row, col };
+                    }
+                });
+                return closestCoord;
+            }
+
+            /**
+             * Finds the shortest path between two points on the grid using Breadth-First Search (BFS).
+             * @param {object} startCoord - The starting coordinate {row, col}.
+             * @param {object} endCoord - The ending coordinate {row, col}.
+             * @returns {Array|null} - An array of coordinates representing the path, or null if no path is found.
+             */
+            function findShortestPath(startCoord, endCoord) {
+                const startNode = `${startCoord.row},${startCoord.col}`;
+                const endNode = `${endCoord.row},${endCoord.col}`;
+
+                if (!pathCoordsSet.has(startNode) || !pathCoordsSet.has(endNode)) {
+                    console.error("Start or end coordinate is not on a walkable path.");
+                    return null;
+                }
+
+                const queue = [[startCoord]];
+                const visited = new Set([startNode]);
+
+                while (queue.length > 0) {
+                    const path = queue.shift();
+                    const currentPos = path[path.length - 1];
+
+                    if (currentPos.row === endCoord.row && currentPos.col === endCoord.col) {
+                        return path; // Path found
+                    }
+
+                    const neighbors = [
+                        { row: currentPos.row - 1, col: currentPos.col },
+                        { row: currentPos.row + 1, col: currentPos.col },
+                        { row: currentPos.row, col: currentPos.col - 1 },
+                        { row: currentPos.row, col: currentPos.col + 1 }
+                    ];
+
+                    for (const neighbor of neighbors) {
+                        const neighborNode = `${neighbor.row},${neighbor.col}`;
+                        if (pathCoordsSet.has(neighborNode) && !visited.has(neighborNode)) {
+                            visited.add(neighborNode);
+                            const newPath = [...path, neighbor];
+                            queue.push(newPath);
+                        }
+                    }
+                }
+
+                return null; // No path found
+            }
+
+			function walkPath(path, finalDestination = null) {
+                if (!path || path.length === 0) {
+                    return;
+                }
+
+                isMoving = true;
+                hideCharacterDialog(); // Hide any open dialogs before walking
+
+                let pathIndex = 1; // Start from the second point in the path (index 1)
+
+                activeMoveInterval = setInterval(() => {
+                    // Check if we have completed the main path
+                    if (pathIndex >= path.length) {
+                        clearInterval(activeMoveInterval); // Stop this interval
+
+                        if (finalDestination) {
+                            // Start a new, separate interval for the final precise move
+                            activeMoveInterval = setInterval(() => {
+                                const dx = finalDestination.x - charPos.x;
+                                const dy = finalDestination.y - charPos.y;
+
+                                if (Math.abs(dx) < step && Math.abs(dy) < step) {
+                                    // Reached the final spot
+                                    stopMovement(); 
+                                    checkBuildingInteraction();
+                                    return;
+                                }
+
+                                const moveX = Math.sign(dx) * step;
+                                const moveY = Math.sign(dy) * step;
+                                if (!activeLocation) {
+                                    if (moveX < 0) { characterImage.src = 'images/couple_left.png'; } 
+                                    else if (moveX > 0) { characterImage.src = 'images/couple_right.png'; }
+                                    else if (moveY !== 0) { characterImage.src = 'images/couple.png'; }
+                                }
+                                charPos.x += moveX;
+                                charPos.y += moveY;
+                                updateCharacterPosition();
+                                centerViewOnCharacter();
+                                checkBuildingInteraction();
+                            }, 50);
+                        } else {
+                            // No final destination, so we are completely done
+                            stopMovement(); 
+                            checkBuildingInteraction();
+                        }
+                        return; // Exit the main interval's callback
+                    }
+
+                    // --- Logic to move to the next waypoint on the path ---
+                    const nextPoint = path[pathIndex];
+                    const targetX = nextPoint.col * gridCellSize + (gridCellSize / 2) - (character.offsetWidth / 2);
+                    const targetY = nextPoint.row * gridCellSize + (gridCellSize / 2) + 15 - character.offsetHeight;
+                    const dx = targetX - charPos.x;
+                    const dy = targetY - charPos.y;
+
+                    // If we are close enough to the waypoint, advance to the next one
+                    if (Math.abs(dx) < step && Math.abs(dy) < step) {
+                        pathIndex++;
+                        return; // Let the next tick of the interval handle the new waypoint
+                    }
+
+                    // Move one step towards the current waypoint
+                    const moveX = Math.sign(dx) * step;
+                    const moveY = Math.sign(dy) * step;
+
+                    if (!activeLocation) {
+                        if (moveX < 0) { characterImage.src = 'images/couple_left.png'; } 
+                        else if (moveX > 0) { characterImage.src = 'images/couple_right.png'; } 
+                        else if (moveY !== 0) { characterImage.src = 'images/couple.png'; }
+                    }
+
+                    charPos.x += moveX;
+                    charPos.y += moveY;
+                    updateCharacterPosition();
+                    centerViewOnCharacter();
+                    checkBuildingInteraction();
+
+                }, 50);
+            }
+			
+            function stopMovement() {
+                if (activeMoveInterval) {
+                    clearInterval(activeMoveInterval);
+                    activeMoveInterval = null;
+                }
+                // Only change state if a move was actually in progress
+                if (isMoving) {
+                    isMoving = false;
+                    // Revert to idle state, but only if not in a special interaction
+                    if (!activeLocation) {
+                        characterImage.src = defaultCharacterState.src;
+                    }
+                }
+            }
+
+
             // --- Event Listeners and Initialization ---
-            document.addEventListener('keydown', (event) => {
+            document.addEventListener('keydown', (event) => {                
                 const key = event.key.toLowerCase();
                 if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(key)) { 
                     event.preventDefault();
+					stopMovement();
                     switch (key) {
                         case 'arrowup': case 'w': moveCharacter(0, -step); break;
                         case 'arrowdown': case 's': moveCharacter(0, step); break;
@@ -1126,13 +1298,15 @@
                 const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
                 touchControlsContainer.style.display = (isTouchDevice || window.innerWidth <= 768) ? 'flex' : 'none';
                 touchControlsContainer.addEventListener('click', (event) => {
+                    if (isMoving) return;
+
                     const button = event.target.closest('.control-button');
                     if (button && button.dataset.key) {
                         event.preventDefault(); 
                         const key = button.dataset.key;
                         switch (key) {
                             case 'ArrowUp': moveCharacter(0, -step); break;
-                            case 'ArrowDown': moveCharacter(0, -step); break; // Corrected from -step
+                            case 'ArrowDown': moveCharacter(0, step); break; 
                             case 'ArrowLeft': moveCharacter(-step, 0); break;
                             case 'ArrowRight': moveCharacter(step, 0); break;
                         }
@@ -1140,16 +1314,66 @@
                 });
             }
 
+            // REWRITTEN: Click listener for pathfinding to buildings or paths.
+            gameContainer.addEventListener('click', (event) => {
+                if (event.target.closest('a')) {
+                    // Don't do anything if character is already moving or a link was clicked
+                    return;
+                }
+				
+				stopMovement();
+
+                const rect = gameContainer.getBoundingClientRect();
+                const clickX = event.clientX - rect.left + window.scrollX;
+                const clickY = event.clientY - rect.top + window.scrollY;
+
+                // 1. Find the closest path coordinate to the CHARACTER (the start)
+                const charCenterX = charPos.x + character.offsetWidth / 2;
+                const charCenterY = charPos.y + character.offsetHeight; // Use character bottom for start point
+                const startPathCoord = findClosestPathCoord(charCenterX, charCenterY);
+                if (!startPathCoord) return;
+
+                // 2. Determine the destination
+                let finalDestination = null; // A precise {x, y} coordinate for the final stop.
+                let destPathCoord = null;    // The {row, col} for the pathfinding algorithm.
+
+                const clickedBuilding = event.target.closest('.location');
+                // Check if a building with a defined interaction was clicked
+                if (clickedBuilding && buildingData[clickedBuilding.id] && buildingData[clickedBuilding.id].interaction) {
+                    // This is our target building.
+                    // The FINAL position is the exact spot at the building's "door"
+                    finalDestination = {
+                        x: clickedBuilding.offsetLeft + (clickedBuilding.offsetWidth / 2) - (character.offsetWidth / 2),
+                        y: clickedBuilding.offsetTop + clickedBuilding.offsetHeight - character.offsetHeight
+                    };
+
+                    // The PATHFINDING destination is the path cell nearest to this final spot
+                    destPathCoord = findClosestPathCoord(finalDestination.x, finalDestination.y);
+                
+                } else {
+                    // No building was clicked, so the destination is just the closest path cell to the mouse click.
+                    destPathCoord = findClosestPathCoord(clickX, clickY);
+                }
+
+                if (!destPathCoord) return; // No valid destination found
+
+                // 3. Find the path
+                const path = findShortestPath(startPathCoord, destPathCoord);
+
+                // 4. Walk the path, providing the final destination if one was set
+                if (path) {
+                    walkPath(path, finalDestination);
+                }
+            });
+
             function handleResize() {
-                createBackgroundGrid(); // Call this first to update numCols
+                createBackgroundGrid(); 
                 positionElementsFromGrid(); 
                 defineWalkableAreas();
-				checkBuildingInteraction(); // Re-check character interaction based on new positions/sizes
-                // If a dialog was active, it might need repositioning based on new element positions
+				checkBuildingInteraction(); 
                 if (activeLocation) { 
-                    showCharacterDialog(activeLocation); // Re-show to update position
+                    showCharacterDialog(activeLocation); 
                 }
-                // Hover dialogs will naturally update on next mouseenter if building positions change
                 
                 const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
                 if (touchControlsContainer) {
@@ -1301,10 +1525,35 @@
                 initializeCharacterPosition(); 
 				
 				// Add hover event listeners
-                locationElements.forEach(el => {
-                    el.addEventListener('mouseenter', () => showHoverDialog(el));
-                    el.addEventListener('mouseleave', () => hideHoverDialog());
+				// When the mouse enters the dialog box, cancel any plan to hide it.
+                hoverDialogLinkWrapper.addEventListener('mouseenter', () => {
+                    clearTimeout(hideHoverDialogTimeout);
                 });
+
+                // When the mouse leaves the dialog box, set a timer to hide it.
+                hoverDialogLinkWrapper.addEventListener('mouseleave', () => {
+                    hideHoverDialogTimeout = setTimeout(() => {
+                        hideHoverDialog();
+                    }, 300); // A 300ms delay feels natural
+                });
+				
+				
+				// Add hover event listeners to all building locations
+                locationElements.forEach(el => {
+                    el.addEventListener('mouseenter', () => {
+                        // When entering a building, cancel any pending hide action and show the dialog.
+                        clearTimeout(hideHoverDialogTimeout);
+                        showHoverDialog(el);
+                    });
+
+                    el.addEventListener('mouseleave', () => {
+                        // When leaving a building, set a timer to hide the dialog.
+                        hideHoverDialogTimeout = setTimeout(() => {
+                            hideHoverDialog();
+                        }, 300);
+                    });
+                });
+				
                 window.addEventListener('resize', handleResize);
                 handleResize(); // Initial call to set up based on current size
                 
